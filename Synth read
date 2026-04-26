@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Synth Analyzer</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Bebas+Neue&display=swap');
+
+:root {
+–bg: #04080d;
+–s1: #080f17;
+–s2: #0c1820;
+–border: #132030;
+–border2: #1e3048;
+–bull: #05f0a0;
+–bear: #f03060;
+–warn: #f0c030;
+–accent: #0088ff;
+–text: #8fafc8;
+–bright: #c8e0f0;
+–muted: #2a4860;
+–step: #a060ff;
+–balanced: #ff8c00;
+}
+
+- { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+background: var(–bg);
+color: var(–text);
+font-family: ‘IBM Plex Mono’, monospace;
+font-size: 12px;
+min-height: 100vh;
+}
+
+body::after {
+content: ‘’;
+position: fixed;
+inset: 0;
+background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
+pointer-events: none;
+z-index: 999;
+}
+
+.wrap { max-width: 480px; margin: 0 auto; padding: 16px 12px 80px; }
+
+.hdr {
+display: flex;
+align-items: flex-start;
+justify-content: space-between;
+margin-bottom: 16px;
+padding-bottom: 12px;
+border-bottom: 1px solid var(–border);
+}
+
+.logo { font-family: ‘Bebas Neue’, sans-serif; font-size: 26px; letter-spacing: 3px; color: var(–bright); line-height: 1; }
+.logo em { color: var(–accent); font-style: normal; }
+.version { font-size: 9px; letter-spacing: 2px; color: var(–muted); text-transform: uppercase; margin-top: 3px; }
+
+.mode-toggle { display: flex; background: var(–s2); border: 1px solid var(–border); border-radius: 6px; padding: 3px; gap: 3px; }
+.mode-btn {
+font-family: ‘IBM Plex Mono’, monospace; font-size: 10px; font-weight: 700;
+letter-spacing: 1px; padding: 7px 12px; border-radius: 4px; border: 1px solid transparent;
+cursor: pointer; transition: all 0.15s; background: transparent; color: var(–muted);
+text-align: center; line-height: 1.4; -webkit-user-select: none; user-select: none;
+}
+.mode-btn.active-scalp { background: rgba(0,136,255,0.2); color: var(–accent); border-color: rgba(0,136,255,0.4); }
+.mode-btn.active-balanced { background: rgba(255,140,0,0.15); color: var(–balanced); border-color: rgba(255,140,0,0.4); }
+
+.mode-banner { border-radius: 5px; padding: 8px 12px; margin-bottom: 12px; font-size: 10px; line-height: 1.5; border: 1px solid; }
+.mode-banner.scalp-banner { background: rgba(0,136,255,0.06); border-color: rgba(0,136,255,0.2); color: #6ab0ff; }
+.mode-banner.balanced-banner { background: rgba(255,140,0,0.06); border-color: rgba(255,140,0,0.2); color: #ffaa44; }
+
+.pills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+.pill {
+background: var(–s1); border: 1px solid var(–border); color: var(–muted);
+font-family: ‘IBM Plex Mono’, monospace; font-size: 10px; font-weight: 600;
+letter-spacing: 1px; padding: 8px 4px; border-radius: 4px; cursor: pointer;
+text-align: center; transition: all 0.12s; -webkit-user-select: none; user-select: none;
+}
+.pill:active { transform: scale(0.96); }
+.pill.active { background: rgba(0,136,255,0.12); border-color: var(–accent); color: var(–accent); }
+.pill.step-active { background: rgba(160,96,255,0.12); border-color: var(–step); color: var(–step); }
+
+.tf-row { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.tf-btn { background: var(–s1); border: 1px solid var(–border); color: var(–muted); font-family: ‘IBM Plex Mono’, monospace; font-size: 10px; padding: 5px 10px; border-radius: 3px; cursor: pointer; transition: all 0.12s; }
+.tf-btn.active { border-color: var(–border2); color: var(–bright); background: var(–s2); }
+
+.fetch-btn {
+width: 100%;
+background: linear-gradient(135deg, rgba(0,136,255,0.15), rgba(0,136,255,0.05));
+border: 1px solid rgba(0,136,255,0.4);
+color: var(–accent);
+font-family: ‘Bebas Neue’, sans-serif;
+font-size: 22px;
+letter-spacing: 3px;
+padding: 16px;
+border-radius: 6px;
+cursor: pointer;
+transition: all 0.15s;
+margin-bottom: 12px;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 10px;
+}
+.fetch-btn.balanced-fetch { background: linear-gradient(135deg,rgba(255,140,0,0.12),rgba(255,140,0,0.04)); border-color: rgba(255,140,0,0.4); color: var(–balanced); }
+.fetch-btn:active { transform: scale(0.98); }
+.fetch-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.loading-wrap {
+display: none; flex-direction: column; align-items: center; gap: 10px;
+padding: 20px; background: var(–s1); border: 1px solid var(–border);
+border-radius: 6px; margin-bottom: 12px;
+}
+.loading-wrap.show { display: flex; }
+.loader { width: 28px; height: 28px; border: 2px solid var(–border); border-top-color: var(–accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 10px; letter-spacing: 2px; color: var(–muted); text-transform: uppercase; }
+
+.error-box { display: none; background: rgba(240,48,96,0.08); border: 1px solid rgba(240,48,96,0.3); border-radius: 5px; padding: 12px; font-size: 11px; color: var(–bear); margin-bottom: 10px; line-height: 1.6; }
+
+.candle-preview { display: none; background: var(–s1); border: 1px solid var(–border); border-radius: 6px; padding: 12px 14px; margin-bottom: 10px; }
+.preview-title { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(–muted); margin-bottom: 8px; display: flex; justify-content: space-between; }
+.preview-title span { color: var(–bull); }
+.preview-rows { display: flex; flex-direction: column; gap: 3px; }
+.preview-row { display: grid; grid-template-columns: 20px 1fr 1fr 1fr 1fr; gap: 4px; font-size: 10px; }
+.pr-num { color: var(–muted); text-align: center; }
+.pr-bull { color: var(–bull); text-align: center; }
+.pr-bear { color: var(–bear); text-align: center; }
+.pr-h { color: #6ab0ff; text-align: center; }
+.pr-l { color: #ff8080; text-align: center; }
+
+#results { display: none; }
+
+.result-mode-badge { display: inline-block; font-size: 9px; letter-spacing: 1.5px; padding: 3px 10px; border-radius: 10px; margin-bottom: 10px; text-transform: uppercase; }
+.badge-scalp { background: rgba(0,136,255,0.15); color: var(–accent); border: 1px solid rgba(0,136,255,0.3); }
+.badge-balanced { background: rgba(255,140,0,0.15); color: var(–balanced); border: 1px solid rgba(255,140,0,0.3); }
+
+.bias-block { border-radius: 6px; padding: 18px 14px; margin-bottom: 10px; border: 1px solid; position: relative; overflow: hidden; }
+.bias-block::before { content: ‘’; position: absolute; top: -40px; right: -40px; width: 120px; height: 120px; border-radius: 50%; opacity: 0.06; }
+.bias-block.bull { background: rgba(5,240,160,0.05); border-color: rgba(5,240,160,0.3); }
+.bias-block.bull::before { background: var(–bull); }
+.bias-block.bear { background: rgba(240,48,96,0.05); border-color: rgba(240,48,96,0.3); }
+.bias-block.bear::before { background: var(–bear); }
+.bias-block.neutral { background: rgba(240,192,48,0.05); border-color: rgba(240,192,48,0.3); }
+
+.bias-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+.bias-label { font-family: ‘Bebas Neue’, sans-serif; font-size: 52px; line-height: 1; letter-spacing: 2px; }
+.bull .bias-label { color: var(–bull); text-shadow: 0 0 30px rgba(5,240,160,0.4); }
+.bear .bias-label { color: var(–bear); text-shadow: 0 0 30px rgba(240,48,96,0.4); }
+.neutral .bias-label { color: var(–warn); }
+.bias-right { text-align: right; }
+.conf-pct { font-family: ‘Bebas Neue’, sans-serif; font-size: 32px; line-height: 1; }
+.bull .conf-pct { color: var(–bull); }
+.bear .conf-pct { color: var(–bear); }
+.neutral .conf-pct { color: var(–warn); }
+.conf-track { width: 80px; height: 3px; background: var(–border); border-radius: 2px; margin: 6px 0 0 auto; overflow: hidden; }
+.conf-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+.bull .conf-fill { background: var(–bull); }
+.bear .conf-fill { background: var(–bear); }
+.neutral .conf-fill { background: var(–warn); }
+.bias-sub { font-size: 9px; letter-spacing: 1px; color: var(–muted); margin-top: 2px; }
+.bias-note { font-size: 11px; color: var(–text); line-height: 1.6; padding-top: 12px; border-top: 1px solid var(–border); }
+
+.rr-warning { background: rgba(240,48,96,0.08); border: 1px solid rgba(240,48,96,0.3); border-radius: 5px; padding: 10px 12px; font-size: 11px; color: var(–bear); margin-bottom: 10px; line-height: 1.5; }
+.rr-good { background: rgba(5,240,160,0.06); border: 1px solid rgba(5,240,160,0.25); border-radius: 5px; padding: 10px 12px; font-size: 11px; color: var(–bull); margin-bottom: 10px; line-height: 1.5; }
+
+.chart-wrap { margin-bottom: 10px; background: var(–s1); border: 1px solid var(–border); border-radius: 6px; padding: 10px 10px 6px; }
+canvas { display: block; width: 100%; }
+
+.stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+.stat-box { background: var(–s1); border: 1px solid var(–border); border-radius: 5px; padding: 10px 8px; text-align: center; }
+.stat-lbl { font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase; color: var(–muted); margin-bottom: 5px; }
+.stat-val { font-size: 14px; font-weight: 700; color: var(–bright); }
+
+.card { background: var(–s1); border: 1px solid var(–border); border-radius: 6px; padding: 14px; margin-bottom: 10px; }
+.card-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(–muted); margin-bottom: 10px; }
+
+.signal-list { display: flex; flex-direction: column; }
+.sig-item { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(–border); }
+.sig-item:last-child { border-bottom: none; }
+.sig-icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+.sig-text { font-size: 11px; color: var(–text); line-height: 1.5; }
+.sig-text b { color: var(–bright); }
+
+.levels-list { display: flex; flex-direction: column; }
+.lev-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(–border); }
+.lev-row:last-child { border-bottom: none; }
+.lev-name { font-size: 9px; letter-spacing: 1px; color: var(–muted); text-transform: uppercase; }
+.lev-val { font-size: 13px; font-weight: 600; }
+.lev-tag { font-size: 8px; padding: 2px 7px; border-radius: 10px; }
+.tag-supply { background: rgba(240,48,96,0.15); color: var(–bear); }
+.tag-demand { background: rgba(5,240,160,0.15); color: var(–bull); }
+.tag-mid { background: rgba(240,192,48,0.12); color: var(–warn); }
+.tag-cur { background: rgba(200,224,240,0.08); color: var(–bright); }
+
+.scalp-box { background: var(–s1); border: 1px solid var(–border); border-radius: 6px; padding: 14px; margin-bottom: 10px; }
+.scalp-title { font-size: 9px; letter-spacing: 2px; color: var(–muted); text-transform: uppercase; margin-bottom: 12px; }
+.scalp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.scalp-item { background: var(–s2); border: 1px solid var(–border); border-radius: 4px; padding: 9px 10px; }
+.scalp-item-lbl { font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(–muted); margin-bottom: 4px; }
+.scalp-item-val { font-size: 15px; font-weight: 700; }
+
+.exhaust-wrap { margin-bottom: 10px; }
+.exhaust-bar-track { height: 8px; background: var(–s2); border-radius: 4px; overflow: hidden; margin-top: 8px; border: 1px solid var(–border); }
+.exhaust-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+.exhaust-label-row { display: flex; justify-content: space-between; margin-top: 4px; font-size: 9px; color: var(–muted); }
+
+.step-note { background: rgba(160,96,255,0.08); border: 1px solid rgba(160,96,255,0.25); border-radius: 5px; padding: 10px 12px; font-size: 10px; color: #c0a0ff; margin-bottom: 10px; line-height: 1.6; }
+
+.trend-strength { background: var(–s1); border: 1px solid var(–border); border-radius: 6px; padding: 14px; margin-bottom: 10px; }
+.ts-bars { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.ts-row { display: flex; align-items: center; gap: 8px; }
+.ts-label { font-size: 9px; color: var(–muted); width: 80px; flex-shrink: 0; }
+.ts-track { flex: 1; height: 5px; background: var(–border); border-radius: 3px; overflow: hidden; }
+.ts-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+.ts-val { font-size: 10px; font-weight: 700; width: 36px; text-align: right; }
+
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+.animate-in { animation: fadeUp 0.25s ease forwards; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hdr">
+    <div>
+      <div class="logo">SYNTH<em>.</em>READ</div>
+      <div class="version">Deriv Live · No Login · v5</div>
+    </div>
+    <div class="mode-toggle">
+      <button class="mode-btn active-scalp" id="btnScalp" onclick="setMode('scalp')">5C<br><span style="font-size:8px">SCALP</span></button>
+      <button class="mode-btn" id="btnBalanced" onclick="setMode('balanced')">10C<br><span style="font-size:8px">BALANCED</span></button>
+    </div>
+  </div>
+
+  <div class="mode-banner scalp-banner" id="modeBanner">
+    ⚡ <b>Scalp Mode — 5 candles.</b> Best for M1–M5. Quick burst reads and tight signals.
+  </div>
+
+  <div class="pills">
+    <div class="pill active" onclick="setInst(this,'R_75','VIX 75')">VX75</div>
+    <div class="pill" onclick="setInst(this,'R_10','VIX 10')">VX10</div>
+    <div class="pill" onclick="setInst(this,'1HZ100V','EGI1')">EGI1</div>
+    <div class="pill" onclick="setInst(this,'1HZ200V','EGI2')">EGI2</div>
+    <div class="pill" onclick="setInst(this,'stpRNG','Step Index')">STEP</div>
+    <div class="pill" onclick="setInst(this,'CRASH1000','Crash 1000')">CRASH</div>
+  </div>
+
+  <div class="tf-row" id="tfRow"></div>
+
+  <button class="fetch-btn" id="fetchBtn" onclick="fetchAndAnalyze()">
+    ⟳ &nbsp;FETCH &amp; ANALYZE
+  </button>
+
+  <div class="loading-wrap" id="loadingWrap">
+    <div class="loader"></div>
+    <div class="loading-text" id="loadingText">Connecting...</div>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <div class="candle-preview" id="candlePreview">
+    <div class="preview-title">
+      FETCHED CANDLES
+      <span>● LIVE DATA</span>
+    </div>
+    <div class="preview-rows" id="previewRows"></div>
+  </div>
+
+  <div id="results">
+    <div id="resultModeBadge" class="result-mode-badge badge-scalp animate-in"></div>
+    <div class="chart-wrap animate-in">
+      <div class="card-label" style="margin-bottom:8px">PRICE STRUCTURE</div>
+      <canvas id="cv" height="140"></canvas>
+    </div>
+    <div id="rrBox" class="animate-in"></div>
+    <div id="biasBlock" class="bias-block animate-in">
+      <div class="bias-top">
+        <div>
+          <div id="biasLbl" class="bias-label">—</div>
+          <div class="bias-sub" id="biasSub"></div>
+        </div>
+        <div class="bias-right">
+          <div id="confPct" class="conf-pct">0%</div>
+          <div class="bias-sub">CONFIDENCE</div>
+          <div class="conf-track"><div id="confFill" class="conf-fill" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div id="biasNote" class="bias-note"></div>
+    </div>
+    <div id="stepNote" class="step-note" style="display:none">
+      ⬡ <b>Step Index detected.</b> Fixed 0.1-pip steps — focus on consecutive direction and compression runs.
+    </div>
+    <div class="trend-strength animate-in" id="trendStrength" style="display:none">
+      <div class="card-label">TREND STRENGTH BREAKDOWN</div>
+      <div class="ts-bars" id="tsBars"></div>
+    </div>
+    <div class="card exhaust-wrap animate-in">
+      <div class="card-label">MOMENTUM EXHAUSTION</div>
+      <div style="font-size:10px;color:var(--text)" id="exhaustText"></div>
+      <div class="exhaust-bar-track"><div class="exhaust-fill" id="exhaustFill"></div></div>
+      <div class="exhaust-label-row"><span>FRESH</span><span>CAUTION</span><span>EXHAUSTED</span></div>
+    </div>
+    <div class="stats-row animate-in">
+      <div class="stat-box"><div class="stat-lbl">Structure</div><div class="stat-val" id="statStruct">—</div></div>
+      <div class="stat-box"><div class="stat-lbl">Avg Range</div><div class="stat-val" id="statATR">—</div></div>
+      <div class="stat-box"><div class="stat-lbl">Last Body%</div><div class="stat-val" id="statBody">—</div></div>
+    </div>
+    <div class="card animate-in">
+      <div class="card-label">SIGNALS DETECTED</div>
+      <div class="signal-list" id="sigList"></div>
+    </div>
+    <div class="card animate-in">
+      <div class="card-label">KEY LEVELS</div>
+      <div class="levels-list" id="levList"></div>
+    </div>
+    <div class="scalp-box animate-in">
+      <div class="scalp-title" id="scalpTitle">Scalp Setup — Short Burst</div>
+      <div class="scalp-grid" id="scalpGrid"></div>
+    </div>
+  </div>
+
+</div>
+<script>
+// ─── STATE ────────────────────────────────────────────
+let inst = 'R_75', instFull = 'VIX 75';
+let tf = 'M5', mode = 'scalp', isStep = false;
+
+const TF_SCALP    = [‘M1’,‘M5’,‘M15’];
+const TF_BALANCED = [‘M5’,‘M15’,‘M30’,‘H1’,‘H4’];
+const GRAN = { M1:60, M5:300, M15:900, M30:1800, H1:3600, H4:14400 };
+
+// Deriv public app_id — no auth needed for price history
+const APP_ID = 1089;
+
+function buildTFRow() {
+const tfs = mode === ‘scalp’ ? TF_SCALP : TF_BALANCED;
+if (!tfs.includes(tf)) tf = tfs[0];
+document.getElementById(‘tfRow’).innerHTML = tfs.map(t =>
+`<div class="tf-btn${t===tf?' active':''}" onclick="setTF(this,'${t}')">${t}</div>`).join(’’);
+}
+
+function setMode(m) {
+mode = m;
+const bS = document.getElementById(‘btnScalp’), bB = document.getElementById(‘btnBalanced’);
+const banner = document.getElementById(‘modeBanner’), fb = document.getElementById(‘fetchBtn’);
+if (m === ‘scalp’) {
+bS.className = ‘mode-btn active-scalp’; bB.className = ‘mode-btn’;
+banner.className = ‘mode-banner scalp-banner’;
+banner.innerHTML = ‘⚡ <b>Scalp Mode — 5 candles.</b> Best for M1–M5. Quick burst reads and tight signals.’;
+fb.className = ‘fetch-btn’; tf = ‘M5’;
+} else {
+bB.className = ‘mode-btn active-balanced’; bS.className = ‘mode-btn’;
+banner.className = ‘mode-banner balanced-banner’;
+banner.innerHTML = ‘⚖️ <b>Balanced Mode — 10 candles.</b> Best for M15–H1. Deeper structure and trend reads.’;
+fb.className = ‘fetch-btn balanced-fetch’; tf = ‘M15’;
+}
+buildTFRow();
+document.getElementById(‘results’).style.display = ‘none’;
+document.getElementById(‘candlePreview’).style.display = ‘none’;
+document.getElementById(‘errorBox’).style.display = ‘none’;
+}
+
+function setInst(el, code, full) {
+document.querySelectorAll(’.pill’).forEach(p => p.classList.remove(‘active’,‘step-active’));
+isStep = (code === ‘stpRNG’);
+el.classList.add(isStep ? ‘step-active’ : ‘active’);
+inst = code; instFull = full;
+}
+
+function setTF(el, t) {
+document.querySelectorAll(’.tf-btn’).forEach(b => b.classList.remove(‘active’));
+el.classList.add(‘active’); tf = t;
+}
+
+function showLoading(msg) {
+document.getElementById(‘loadingWrap’).classList.add(‘show’);
+document.getElementById(‘loadingText’).textContent = msg;
+document.getElementById(‘errorBox’).style.display = ‘none’;
+document.getElementById(‘fetchBtn’).disabled = true;
+}
+
+function hideLoading() {
+document.getElementById(‘loadingWrap’).classList.remove(‘show’);
+document.getElementById(‘fetchBtn’).disabled = false;
+}
+
+function showError(msg) {
+hideLoading();
+const eb = document.getElementById(‘errorBox’);
+eb.innerHTML = msg;
+eb.style.display = ‘block’;
+}
+
+// ─── FETCH FROM DERIV ─────────────────────────────────
+function fetchAndAnalyze() {
+const need  = mode === ‘scalp’ ? 5 : 10;
+const gran  = GRAN[tf];
+// Request extra candles to ensure we have enough closed ones
+const count = need + 3;
+
+showLoading(‘Fetching live candles…’);
+document.getElementById(‘results’).style.display = ‘none’;
+document.getElementById(‘candlePreview’).style.display = ‘none’;
+
+const wsUrl = `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`;
+let ws;
+
+try {
+ws = new WebSocket(wsUrl);
+} catch(e) {
+showError(‘WebSocket not supported. Please open this tool from the published URL in Safari.’);
+return;
+}
+
+const timeout = setTimeout(() => {
+try { ws.close(); } catch(e){}
+showError(‘Connection timed out. Check your internet connection and try again.’);
+}, 12000);
+
+ws.onopen = function() {
+document.getElementById(‘loadingText’).textContent = ‘Fetching candles…’;
+ws.send(JSON.stringify({
+ticks_history: inst,
+style: ‘candles’,
+granularity: gran,
+count: count,
+end: ‘latest’,
+adjust_start_time: 1
+}));
+};
+
+ws.onmessage = function(e) {
+clearTimeout(timeout);
+let data;
+try { data = JSON.parse(e.data); } catch(ex) {
+showError(‘Invalid response from server. Try again.’); ws.close(); return;
+}
+
+```
+if (data.error) {
+  showError('Deriv API error: <b>' + data.error.message + '</b><br>Try a different instrument or timeframe.');
+  ws.close(); return;
+}
+
+if (data.msg_type === 'candles') {
+  ws.close();
+  const raw = data.candles || [];
+  if (!raw.length) {
+    showError('No candle data returned. This instrument may not support this timeframe. Try M5 or M15.');
+    return;
+  }
+
+  // Filter out currently-forming candle
+  const nowSec = Math.floor(Date.now() / 1000);
+  const closed = raw.filter(c => (nowSec - c.epoch) >= gran);
+
+  // Take the last N closed candles
+  const slice = closed.slice(-need);
+
+  if (slice.length < (mode === 'scalp' ? 3 : 5)) {
+    showError('Not enough closed candles. Try M5 or M15 timeframe and try again.');
+    return;
+  }
+
+  const cc = slice.map(c => ({
+    o: parseFloat(c.open),
+    h: parseFloat(c.high),
+    l: parseFloat(c.low),
+    c: parseFloat(c.close),
+    epoch: c.epoch
+  }));
+
+  hideLoading();
+  showPreview(cc);
+  renderResults(engine(cc), cc);
+}
+```
+
+};
+
+ws.onerror = function() {
+clearTimeout(timeout);
+showError(‘Connection failed. Make sure you have internet access, then try again.’);
+hideLoading();
+};
+
+ws.onclose = function() {
+clearTimeout(timeout);
+hideLoading();
+};
+}
+
+function showPreview(cc) {
+const dp = Math.max(…cc.map(c => { const s = c.c.toString().split(’.’)[1]; return s ? s.length : 0; }));
+const fmt = v => v.toFixed(dp);
+document.getElementById(‘candlePreview’).style.display = ‘block’;
+let html = `<div class="preview-row" style="margin-bottom:4px">
+<div></div>
+<div style="color:var(--muted);font-size:9px;text-align:center">O</div>
+<div style="color:var(--muted);font-size:9px;text-align:center">H</div>
+<div style="color:var(--muted);font-size:9px;text-align:center">L</div>
+<div style="color:var(--muted);font-size:9px;text-align:center">C</div>
+
+  </div>`;
+  cc.forEach((c, i) => {
+    const bull = c.c >= c.o, cl = bull ? 'pr-bull' : 'pr-bear';
+    html += `<div class="preview-row">
+      <div class="pr-num">${i+1}</div>
+      <div class="${cl}">${fmt(c.o)}</div>
+      <div class="pr-h">${fmt(c.h)}</div>
+      <div class="pr-l">${fmt(c.l)}</div>
+      <div class="${cl}">${fmt(c.c)}</div>
+    </div>`;
+  });
+  document.getElementById('previewRows').innerHTML = html;
+}
+
+// ─── ANALYSIS ENGINE ──────────────────────────────────
+function engine(cc) {
+const n = cc.length, last = cc[n-1], prev = n >= 2 ? cc[n-2] : null;
+const allH = cc.map(c => c.h), allL = cc.map(c => c.l);
+const trs = cc.map((c,i) => i===0 ? c.h-c.l : Math.max(c.h-c.l, Math.abs(c.h-cc[i-1].c), Math.abs(c.l-cc[i-1].c)));
+const atr = trs.reduce((a,b) => a+b, 0) / n;
+const recentATR = trs.slice(-3).reduce((a,b) => a+b, 0) / Math.min(3, n);
+const dp = Math.max(…cc.map(c => { const s = c.c.toString().split(’.’)[1]; return s ? s.length : 0; }));
+const fmt = v => v.toFixed(dp);
+
+// Structure
+const swH = [], swL = [];
+for (let i = 1; i < n-1; i++) {
+if (cc[i].h > cc[i-1].h && cc[i].h > cc[i+1].h) swH.push(cc[i].h);
+if (cc[i].l < cc[i-1].l && cc[i].l < cc[i+1].l) swL.push(cc[i].l);
+}
+let structure = ‘ranging’;
+if (swH.length >= 2 && swL.length >= 2) {
+const hh = swH[swH.length-1] > swH[swH.length-2], hl = swL[swL.length-1] > swL[swL.length-2];
+const lh = swH[swH.length-1] < swH[swH.length-2], ll = swL[swL.length-1] < swL[swL.length-2];
+if (hh && hl) structure = ‘bullish’;
+else if (lh && ll) structure = ‘bearish’;
+} else {
+structure = last.c > cc[0].c * 1.0005 ? ‘bullish’ : last.c < cc[0].c * 0.9995 ? ‘bearish’ : ‘ranging’;
+}
+
+const bullC = cc.filter(c => c.c > c.o).length, bearC = cc.filter(c => c.c < c.o).length;
+const swingHigh = Math.max(…allH), swingLow = Math.min(…allL), fullRange = swingHigh - swingLow || 1;
+
+let bos = null;
+if (n >= 3) {
+const ph = Math.max(…allH.slice(0, n-1)), pl = Math.min(…allL.slice(0, n-1));
+if (last.c > ph) bos = ‘bull’; else if (last.c < pl) bos = ‘bear’;
+}
+
+const body = Math.abs(last.c - last.o), rng = last.h - last.l || 0.0001;
+const topWick = last.h - Math.max(last.c, last.o), botWick = Math.min(last.c, last.o) - last.l;
+const bodyPct = Math.round((body / rng) * 100), isBullLast = last.c > last.o;
+const bullEngulf = prev && last.c > last.o && prev.c < prev.o && last.c >= prev.o && last.o <= prev.c;
+const bearEngulf = prev && last.c < last.o && prev.c > prev.o && last.c <= prev.o && last.o >= prev.c;
+const bullPin = !isStep && botWick > body * 1.8 && botWick > topWick;
+const bearPin = !isStep && topWick > body * 1.8 && topWick > botWick;
+const momBull = isBullLast && bodyPct >= 65, momBear = !isBullLast && bodyPct >= 65;
+const doji = bodyPct < 15 && !isStep;
+
+let consec = 1; const consecDir = isBullLast ? ‘bull’ : ‘bear’;
+for (let i = n-2; i >= 0; i–) { if ((cc[i].c > cc[i].o) === isBullLast) consec++; else break; }
+
+const rangeRatio = (last.h - last.l) / (atr || 1);
+const isExpanding = rangeRatio > 1.3, isContracting = rangeRatio < 0.6;
+
+let stepRun = 0, stepDir = ‘’;
+if (isStep) {
+stepDir = last.c > last.o ? ‘up’ : ‘down’;
+for (let i = n-1; i >= 0; i–) { if ((cc[i].c > cc[i].o) === (last.c > last.o)) stepRun++; else break; }
+}
+
+const deltas = cc.map(c => { const r = c.h - c.l || 1; return ((c.c - c.l) / r - 0.5) * 2; });
+const recentDelta = deltas.slice(-3).reduce((a,b) => a+b, 0);
+const pricePos = (last.c - swingLow) / fullRange;
+
+let exhaustPct = 0;
+exhaustPct += Math.min(40, consec * (mode === ‘balanced’ ? 6 : 10));
+exhaustPct += Math.min(20, bodyPct * 0.2);
+if (pricePos > 0.8 && consecDir === ‘bull’) exhaustPct += 25;
+if (pricePos < 0.2 && consecDir === ‘bear’) exhaustPct += 25;
+if (isStep && stepRun >= 4) exhaustPct += 20;
+exhaustPct = Math.min(98, exhaustPct);
+
+// Dynamic R:R from real levels
+const roomAbove = swingHigh - last.c;
+let slDist, tp1Dist, tp2Dist;
+if (mode === ‘scalp’) {
+slDist    = isStep ? recentATR * 0.6 : recentATR * 0.75;
+tp1Dist   = Math.min(roomAbove * 0.6,  recentATR * 1.5);
+tp2Dist   = Math.min(roomAbove * 0.88, recentATR * 2.5);
+} else {
+slDist    = recentATR * 0.8;
+tp1Dist   = Math.min(roomAbove * 0.55, recentATR * 2.0);
+tp2Dist   = Math.min(roomAbove * 0.85, recentATR * 3.5);
+}
+slDist  = Math.max(slDist,  atr * 0.3);
+tp1Dist = Math.max(tp1Dist, atr * 0.8);
+tp2Dist = Math.max(tp2Dist, atr * 1.5);
+
+const rrRatio = tp1Dist / slDist, rrGood = rrRatio >= 1.5, rrStr = rrRatio.toFixed(1);
+const entry = last.c;
+const scalp = { entry,
+slL: entry - slDist,   tp1L: entry + tp1Dist, tp2L: entry + tp2Dist,
+slS: entry + slDist,   tp1S: entry - tp1Dist, tp2S: entry - tp2Dist };
+
+// Scoring
+let bull = 0, bear = 0; const sigs = [];
+if (structure === ‘bullish’) bull += mode === ‘balanced’ ? 3 : 2;
+if (structure === ‘bearish’) bear += mode === ‘balanced’ ? 3 : 2;
+if (bos === ‘bull’) { bull += 3; sigs.push({t:‘bull’, txt:’<b>Bullish BOS</b> — closed above prior range high. Trend continuation.’}); }
+if (bos === ‘bear’) { bear += 3; sigs.push({t:‘bear’, txt:’<b>Bearish BOS</b> — closed below prior range low. Sellers in control.’}); }
+if (bullEngulf) { bull += 2.5; sigs.push({t:‘bull’, txt:’<b>Bullish engulfing</b> — buyers absorbed prior bearish candle.’}); }
+if (bearEngulf) { bear += 2.5; sigs.push({t:‘bear’, txt:’<b>Bearish engulfing</b> — sellers absorbed prior bullish candle.’}); }
+if (bullPin)    { bull += 2;   sigs.push({t:‘bull’, txt:’<b>Bullish pin bar</b> — strong rejection of lower prices.’}); }
+if (bearPin)    { bear += 2;   sigs.push({t:‘bear’, txt:’<b>Bearish pin bar</b> — sellers rejecting highs hard.’}); }
+if (momBull && !bullEngulf) { bull += 1.5; sigs.push({t:‘bull’, txt:`<b>Momentum candle</b> — ${bodyPct}% body. Buyers pushing hard.`}); }
+if (momBear && !bearEngulf) { bear += 1.5; sigs.push({t:‘bear’, txt:`<b>Momentum candle</b> — ${bodyPct}% body. Sellers driving down.`}); }
+if (doji) sigs.push({t:‘warn’, txt:’<b>Doji / indecision</b> — wait for next candle to confirm direction.’});
+
+if (consec >= 3 && exhaustPct > 60) {
+sigs.push({t:‘warn’, txt:`<b>${consec} consecutive ${consecDir==='bull'?'▲':'▼'} candles</b> — exhaustion building. Pullback risk.`});
+if (consecDir === ‘bull’) bear += 1; else bull += 1;
+} else if (consec >= 2) {
+sigs.push({t: consecDir, txt:`<b>${consec} candles same direction</b> — momentum building ${consecDir==='bull'?'upward':'downward'}.`});
+if (consecDir === ‘bull’) bull += 1; else bear += 1;
+}
+
+if (isExpanding) sigs.push({t: isBullLast?‘bull’:‘bear’, txt:`<b>Range expanding</b> — last candle ${(rangeRatio*100-100).toFixed(0)}% wider than average.`});
+if (isContracting) sigs.push({t:‘warn’, txt:’<b>Range contracting</b> — compression. Breakout incoming.’});
+if (recentDelta >  0.5) { bull += 0.5; sigs.push({t:‘bull’, txt:’<b>Order flow positive</b> — closes near highs. Buyers absorbing.’}); }
+if (recentDelta < -0.5) { bear += 0.5; sigs.push({t:‘bear’, txt:’<b>Order flow negative</b> — closes near lows. Sellers absorbing.’}); }
+
+if (mode === ‘balanced’) {
+const mid = swingLow + fullRange * 0.5;
+if (last.c > mid && structure === ‘bullish’) { bull += 1; sigs.push({t:‘bull’, txt:’<b>Price above midpoint</b> — bulls holding upper half.’}); }
+if (last.c < mid && structure === ‘bearish’) { bear += 1; sigs.push({t:‘bear’, txt:’<b>Price below midpoint</b> — bears holding lower half.’}); }
+if (structure === ‘bullish’ && bullC/n >= 0.6) { bull += 1; sigs.push({t:‘bull’, txt:`<b>Trend consistency</b> — ${bullC}/${n} candles bullish.`}); }
+if (structure === ‘bearish’ && bearC/n >= 0.6) { bear += 1; sigs.push({t:‘bear’, txt:`<b>Trend consistency</b> — ${bearC}/${n} candles bearish.`}); }
+}
+
+// Always show price position
+const pp = (pricePos * 100).toFixed(0);
+if      (pricePos > 0.80) { bear += 1; sigs.push({t:‘bear’, txt:`Price at <b>${pp}% of range</b> — near supply. Avoid new longs. Good for shorts.`}); }
+else if (pricePos > 0.60) sigs.push({t:‘warn’, txt:`Price at <b>${pp}% of range</b> — upper half. Longs: TP1 only. Better zone for shorts.`});
+else if (pricePos >= 0.40) sigs.push({t:‘warn’, txt:`Price at <b>${pp}% of range</b> — mid range. Either direction ok. Target TP1 primarily.`});
+else if (pricePos >= 0.20) { bull += 0.5; sigs.push({t:‘bull’, txt:`Price at <b>${pp}% of range</b> — lower half. Good room above. TP1 and TP2 reachable.`}); }
+else { bull += 1; sigs.push({t:‘bull’, txt:`Price at <b>${pp}% of range</b> — near demand. Ideal for longs. Avoid new shorts.`}); }
+
+if (!rrGood) sigs.push({t:‘warn’, txt:`<b>R:R is ${rrStr}:1</b> — below 1.5. Wait for a better entry position.`});
+
+if (isStep) {
+sigs.unshift({t: stepDir===‘up’?‘bull’:‘bear’, txt:`<b>Step Index:</b> ${stepRun} consecutive ${stepDir} steps. ${stepRun>=4?'Exhausting — possible reversal.':'Trend in motion.'}`});
+if (stepRun >= 4) { if (stepDir===‘up’) bear += 1.5; else bull += 1.5; }
+}
+
+let bias, conf; const total = bull + bear;
+if      (bull > bear) { bias=‘LONG’;  conf = total>0 ? Math.min(94, Math.round((bull/total)*100)) : 50; }
+else if (bear > bull) { bias=‘SHORT’; conf = total>0 ? Math.min(94, Math.round((bear/total)*100)) : 50; }
+else                  { bias=‘WAIT’;  conf = 50; }
+
+const mn = mode === ‘balanced’ ? ’Use H1 for direction, M15/M5 for entry. ’ : ‘’;
+const notes = {
+LONG:  structure===‘bullish’
+? `${mn}Structure bullish. Price at ${pp}% of range. ${bos==='bull'?'BOS confirmed. ':''}${rrGood?`R:R ${rrStr}:1 — acceptable.`:'R:R weak — wait for pullback to demand for better entry.'}`
+: `${mn}Mixed structure but signals favour long. Wait for bullish candle close before entering. Price must hold above ${fmt(last.h)}.`,
+SHORT: structure===‘bearish’
+? `${mn}Structure bearish. Price at ${pp}% of range. ${bos==='bear'?'BOS confirmed. ':''}${rrGood?`R:R ${rrStr}:1 — acceptable.`:'R:R weak — wait for bounce to supply for better entry.'}`
+: `${mn}Mixed structure but signals favour short. Wait for bearish confirmation candle. Price must break ${fmt(last.l)} cleanly.`,
+WAIT:  `${mn}No dominant bias. Structure ${structure}. Price at ${pp}% of range. Sit out — wait for BOS or strong momentum candle.`
+};
+
+return { bias, conf, structure, bos, sigs, atr, bodyPct, consec, consecDir,
+exhaustPct, pricePos, dp, fmt, stepRun, stepDir, rrRatio, rrGood, rrStr,
+bullC, bearC, n, levels: {hi:swingHigh, lo:swingLow, mid:swingLow+fullRange*0.5, cur:last.c},
+scalp, note: notes[bias] };
+}
+
+// ─── RENDER ───────────────────────────────────────────
+function renderResults(r, cc) {
+document.getElementById(‘results’).style.display = ‘block’;
+const cls = r.bias===‘LONG’ ? ‘bull’ : r.bias===‘SHORT’ ? ‘bear’ : ‘neutral’;
+const col = cls===‘bull’ ? ‘var(–bull)’ : cls===‘bear’ ? ‘var(–bear)’ : ‘var(–warn)’;
+
+const badge = document.getElementById(‘resultModeBadge’);
+badge.className = `result-mode-badge ${mode==='scalp'?'badge-scalp':'badge-balanced'} animate-in`;
+badge.textContent = mode===‘scalp’ ? `⚡ Scalp · ${r.n} Candles · ${tf}` : `⚖️ Balanced · ${r.n} Candles · ${tf}`;
+
+document.getElementById(‘rrBox’).innerHTML = r.rrGood
+? `<div class="rr-good animate-in">✓ R:R is <b>${r.rrStr}:1</b> — setup math acceptable. ${r.rrRatio>=2?'Room for TP1 and TP2.':'Target TP1 primarily.'}</div>`
+: `<div class="rr-warning animate-in">⚠ R:R is only <b>${r.rrStr}:1</b> — below 1.5. Too close to ${r.bias==='LONG'?'supply':'demand'}. Wait for better entry.</div>`;
+
+const bb = document.getElementById(‘biasBlock’);
+bb.className = `bias-block ${cls} animate-in`;
+document.getElementById(‘biasLbl’).textContent = r.bias;
+document.getElementById(‘biasSub’).textContent = `${instFull} · ${tf} · LIVE`;
+document.getElementById(‘confPct’).textContent = r.conf + ‘%’;
+document.getElementById(‘confFill’).style.width = r.conf + ‘%’;
+document.getElementById(‘biasNote’).textContent = r.note;
+document.getElementById(‘stepNote’).style.display = isStep ? ‘block’ : ‘none’;
+
+const ts = document.getElementById(‘trendStrength’);
+if (mode === ‘balanced’) {
+ts.style.display = ‘block’;
+const items = [
+{ l:‘Structure’,   v: r.structure===‘bullish’?80:r.structure===‘bearish’?20:50 },
+{ l:‘Candle Flow’, v: Math.max(r.bullC,r.bearC)/r.n*100|0 },
+{ l:‘BOS Signal’,  v: r.bos ? 85 : 45 },
+{ l:‘Energy Left’, v: 100 - r.exhaustPct | 0 },
+];
+document.getElementById(‘tsBars’).innerHTML = items.map(x => {
+const c = x.v>60?‘var(–bull)’:x.v<40?‘var(–bear)’:‘var(–warn)’;
+return `<div class="ts-row"><div class="ts-label">${x.l}</div><div class="ts-track"><div class="ts-fill" style="width:${x.v}%;background:${c}"></div></div><div class="ts-val" style="color:${c}">${x.v}%</div></div>`;
+}).join(’’);
+} else ts.style.display = ‘none’;
+
+const ep = r.exhaustPct, exC = ep<40?‘var(–bull)’:ep<70?‘var(–warn)’:‘var(–bear)’;
+document.getElementById(‘exhaustText’).innerHTML =
+`Momentum: <b style="color:${exC}">${ep<40?'Fresh — trend has legs':ep<70?'Building — watch for slowdown':'High — reversal / pullback risk'}</b>`;
+const ef = document.getElementById(‘exhaustFill’);
+ef.style.width = ep + ‘%’; ef.style.background = `linear-gradient(90deg,var(--bull),${exC})`;
+
+document.getElementById(‘statStruct’).textContent = r.structure.toUpperCase();
+document.getElementById(‘statStruct’).style.color = r.structure===‘bullish’?‘var(–bull)’:r.structure===‘bearish’?‘var(–bear)’:‘var(–warn)’;
+document.getElementById(‘statATR’).textContent = r.fmt(r.atr);
+document.getElementById(‘statBody’).textContent = r.bodyPct + ‘%’;
+
+if (!r.sigs.length) r.sigs.push({t:‘warn’, txt:‘No strong pattern detected. Wait for a clearer setup.’});
+document.getElementById(‘sigList’).innerHTML = r.sigs.map(s => {
+const ic = s.t===‘bull’?‘▲’:s.t===‘bear’?‘▼’:‘◆’;
+const c  = s.t===‘bull’?‘var(–bull)’:s.t===‘bear’?‘var(–bear)’:‘var(–warn)’;
+return `<div class="sig-item"><div class="sig-icon" style="color:${c}">${ic}</div><div class="sig-text">${s.txt}</div></div>`;
+}).join(’’);
+
+const lv = r.levels;
+document.getElementById(‘levList’).innerHTML = ` <div class="lev-row"><span class="lev-name">Supply / High</span><span class="lev-val" style="color:var(--bear)">${r.fmt(lv.hi)}</span><span class="lev-tag tag-supply">SUPPLY</span></div> <div class="lev-row"><span class="lev-name">Mid Level</span><span class="lev-val" style="color:var(--warn)">${r.fmt(lv.mid)}</span><span class="lev-tag tag-mid">50%</span></div> <div class="lev-row"><span class="lev-name">Demand / Low</span><span class="lev-val" style="color:var(--bull)">${r.fmt(lv.lo)}</span><span class="lev-tag tag-demand">DEMAND</span></div> <div class="lev-row"><span class="lev-name">Current Price</span><span class="lev-val" style="color:var(--bright)">${r.fmt(lv.cur)}</span><span class="lev-tag tag-cur">LIVE</span></div>`;
+
+const sc = r.scalp, isL = r.bias === ‘LONG’;
+document.getElementById(‘scalpTitle’).textContent = mode===‘scalp’ ? ‘Scalp Setup — Short Burst’ : ‘Trade Setup — Balanced’;
+document.getElementById(‘scalpGrid’).innerHTML = ` <div class="scalp-item"><div class="scalp-item-lbl">Entry</div><div class="scalp-item-val" style="color:${col}">${r.fmt(sc.entry)}</div></div> <div class="scalp-item"><div class="scalp-item-lbl">Stop Loss</div><div class="scalp-item-val" style="color:var(--bear)">${r.fmt(isL?sc.slL:sc.slS)}</div></div> <div class="scalp-item"><div class="scalp-item-lbl">TP1</div><div class="scalp-item-val" style="color:var(--bull)">${r.fmt(isL?sc.tp1L:sc.tp1S)}</div></div> <div class="scalp-item"><div class="scalp-item-lbl">TP2</div><div class="scalp-item-val" style="color:var(--bull)">${r.fmt(isL?sc.tp2L:sc.tp2S)}</div></div> <div class="scalp-item"><div class="scalp-item-lbl">R:R Ratio</div><div class="scalp-item-val" style="color:${r.rrGood?'var(--bull)':'var(--bear)'}">${r.rrStr}:1</div></div> <div class="scalp-item"><div class="scalp-item-lbl">ATR (avg)</div><div class="scalp-item-val" style="color:var(--text)">${r.fmt(r.atr)}</div></div>`;
+
+drawChart(cc, r);
+document.getElementById(‘results’).scrollIntoView({behavior:‘smooth’, block:‘nearest’});
+}
+
+function drawChart(cc, r) {
+const cv = document.getElementById(‘cv’), dpr = window.devicePixelRatio || 1;
+const W = cv.offsetWidth || 340, H = 140;
+cv.width = W*dpr; cv.height = H*dpr; cv.style.width = W+‘px’; cv.style.height = H+‘px’;
+const ctx = cv.getContext(‘2d’); ctx.scale(dpr, dpr);
+const pad = {t:10,b:10,l:6,r:52}, cw = W-pad.l-pad.r, ch = H-pad.t-pad.b;
+const hi = r.levels.hi, lo = r.levels.lo, span = hi-lo||1;
+const toY = p => pad.t + ch - ((p-lo)/span)*ch;
+const n = cc.length, slotW = cw/n, barW = Math.min(slotW*0.5, 14);
+
+ctx.fillStyle=‘rgba(240,48,96,0.07)’;
+ctx.fillRect(pad.l, toY(hi), cw, Math.max(2, toY(hi-span*0.06)-toY(hi)));
+ctx.fillStyle=‘rgba(5,240,160,0.07)’;
+ctx.fillRect(pad.l, toY(lo+span*0.06), cw, Math.max(2, toY(lo)-toY(lo+span*0.06)));
+ctx.strokeStyle=‘rgba(240,192,48,0.2)’; ctx.setLineDash([3,5]); ctx.lineWidth=1;
+ctx.beginPath(); ctx.moveTo(pad.l,toY(r.levels.mid)); ctx.lineTo(pad.l+cw,toY(r.levels.mid)); ctx.stroke();
+ctx.setLineDash([]);
+
+ctx.font=‘8px IBM Plex Mono’; ctx.textAlign=‘left’;
+ctx.fillStyle=‘rgba(240,48,96,0.7)’;  ctx.fillText(r.fmt(hi),       pad.l+cw+4, toY(hi)+4);
+ctx.fillStyle=‘rgba(240,192,48,0.6)’; ctx.fillText(r.fmt(r.levels.mid), pad.l+cw+4, toY(r.levels.mid)+4);
+ctx.fillStyle=‘rgba(5,240,160,0.7)’;  ctx.fillText(r.fmt(lo),       pad.l+cw+4, toY(lo)+4);
+
+cc.forEach((c, i) => {
+const x = pad.l + i*slotW + slotW/2, bull = c.c >= c.o;
+const alpha = mode===‘balanced’ && i < 5 ? 0.45 : 0.9;
+const col = bull ? ‘#05f0a0’ : ‘#f03060’;
+ctx.strokeStyle=col; ctx.lineWidth=1; ctx.globalAlpha=alpha;
+ctx.beginPath(); ctx.moveTo(x,toY(c.h)); ctx.lineTo(x,toY(c.l)); ctx.stroke();
+const bTop=toY(Math.max(c.o,c.c)), bBot=toY(Math.min(c.o,c.c));
+ctx.fillStyle=col; ctx.fillRect(x-barW/2, bTop, barW, Math.max(1.5, bBot-bTop));
+});
+ctx.globalAlpha=1;
+ctx.fillStyle=‘rgba(200,224,240,0.8)’; ctx.font=‘9px IBM Plex Mono’; ctx.textAlign=‘right’;
+ctx.fillText(r.fmt(cc[n-1].c), W-2, toY(cc[n-1].c)-3);
+}
+
+// Init
+buildTFRow();
+</script>
+
+</body>
+</html>
